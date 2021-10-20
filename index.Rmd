@@ -1,0 +1,67 @@
+---
+output: html_document
+---
+# Summary
+I am building a model to predict the manner in which the subjects did the exercise based on various data elements from accelerometers.
+
+```{r setup, message=FALSE}
+library(caret)
+```
+
+## Data Prep
+First I will prepare the data. I will read in the data, remove the first 6 columns which are not data columns, and then remove any column that has NA values. I will then match the testing dataset columns to the cleaned training dataset columns, excluding the final column as that is the column that we are trying to predict and is not present in the testing data. 
+
+```{r dataprep}
+training<-read.csv("pml-training.csv",na.strings = c("NA","#DIV/0!"),row.names = 1)
+testing<-read.csv("pml-testing.csv",na.strings = c("NA","#DIV/0!"),row.names = 1)
+training<-training[,-(1:6)]
+training<-training[,colSums(is.na(training))==0]
+testing<-subset(testing,select = names(training)[1:52])
+```
+
+## Model Prep
+Next I will do some preparations for modeling. I will take the cleaned training data and divide it into a train and test component, and I will also setup my cross validation parameter to use 5-fold cross validation. 
+
+```{r modelprep}
+set.seed(123321)
+intrain<-createDataPartition(y=training$classe, p=.7, list=FALSE)
+traindata<-training[intrain,]
+testdata<-training[-intrain,]
+cvRF<-trainControl(method="cv",5)
+```
+
+## Tree Model
+I first build a tree model. The results of this model are not very good as the estimated out of sample accuracy is only .4895. 
+
+```{r Treemodel}
+modelTree<-train(classe~., data=traindata, method="rpart", trControl=cvRF)
+predictTree<-predict(modelTree, testdata)
+confusionMatrix(predictTree, factor(testdata$classe))
+```
+
+## Random Forest Model
+Next I will build a random forest model. The results of this model are much better, with an estimated out of sample accuracy of .9927. 
+
+```{r RFmodel}
+modelRF<-train(classe~., data=traindata, method="rf", trControl=cvRF, ntree=200)
+predictRF<-predict(modelRF, testdata)
+confusionMatrix(predictRF, factor(testdata$classe))
+```
+
+## Boosting Model
+Last I will build a boosting model. The results of this model are pretty good as well with an estimated out of sample accuracy of .9623. Not as good as the random forest but still very good. 
+
+```{r GBMmodel}
+modelGBM<-train(classe~., data=traindata, method="gbm", trControl=cvRF, verbose=FALSE)
+predictGBM<-predict(modelGBM, testdata)
+confusionMatrix(predictGBM, factor(testdata$classe))
+```
+
+# Conclusion 
+The random forest model is best, so we will use that on our data sample that we would like to make predictions on.
+
+```{r predict_final}
+predictRF_final<-predict(modelRF, testing)
+predictRF_final
+```
+
